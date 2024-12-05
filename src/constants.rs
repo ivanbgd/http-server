@@ -11,7 +11,7 @@ pub const BUFFER_LEN: usize = 1 << 10;
 pub const GET_ROOT_URI: &[u8] = b"GET / HTTP/1.1\r\n";
 
 pub const STATUS_200_OK: &str = "HTTP/1.1 200 OK";
-pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 NOT FOUND";
+pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 Not Found";
 
 pub const HELLO_HTML: &str = "templates/hello.html";
 pub const NOT_FOUND_404_HTML: &str = "templates/404.html";

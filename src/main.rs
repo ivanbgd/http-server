@@ -10,11 +10,11 @@ use tokio::net::TcpListener;
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    info!("starting the server...");
+    info!("Starting the server...");
 
     let listener = TcpListener::bind(LOCAL_SOCKET_ADDR_STR).await?;
 
-    info!("waiting for requests...");
+    info!("Waiting for requests...");
 
     loop {
         let (stream, _) = listener.accept().await?;

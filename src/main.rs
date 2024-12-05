@@ -1,16 +1,26 @@
+//! # An HTTP Server
+
+use anyhow::Result;
+use codecrafters_http_server::constants::LOCAL_SOCKET_ADDR_STR;
+use log::{info, warn};
 use std::net::TcpListener;
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
+fn main() -> Result<()> {
+    env_logger::init();
+    info!("starting the app...");
+
+    let listener = TcpListener::bind(LOCAL_SOCKET_ADDR_STR)?;
 
     for stream in listener.incoming() {
         match stream {
             Ok(_stream) => {
-                println!("accepted new connection");
+                info!("accepted a new connection");
             }
             Err(e) => {
-                println!("error: {}", e);
+                warn!("error: {}", e);
             }
         }
     }
+
+    Ok(())
 }

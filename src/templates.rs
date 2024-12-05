@@ -14,10 +14,11 @@ pub fn hello_html() -> String {
 
 pub fn echo_html(echo: &str) -> String {
     let h = html! {
-        (DOCTYPE)
-        meta lang="en";
-        meta charset="utf-8";
-        title { "📣 Echoing \"" (echo) "\"" }
+        // (DOCTYPE)
+        // meta lang="en";
+        // meta charset="utf-8";
+        // title { "📣 Echoing \"" (echo) "\"" }
+        (echo)
     };
     h.into_string()
 }

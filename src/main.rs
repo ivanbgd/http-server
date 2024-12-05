@@ -1,6 +1,7 @@
 //! # An HTTP Server
 
 use anyhow::Result;
+use codecrafters_http_server::conn::handle_connection;
 use codecrafters_http_server::constants::LOCAL_SOCKET_ADDR_STR;
 use log::{info, warn};
 use std::net::TcpListener;
@@ -12,14 +13,9 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind(LOCAL_SOCKET_ADDR_STR)?;
 
     for stream in listener.incoming() {
-        match stream {
-            Ok(_stream) => {
-                info!("accepted a new connection");
-            }
-            Err(e) => {
-                warn!("error: {}", e);
-            }
-        }
+        let _ = handle_connection(stream?).map_err(|e| {
+            warn!("error: {}", e);
+        });
     }
 
     Ok(())

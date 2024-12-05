@@ -4,9 +4,9 @@
 
 use thiserror::Error;
 
-/// Errors related to working with ...
+/// Errors related to working with [`crate::conn`]
 #[derive(Debug, Error)]
-pub enum GeneralError {
+pub enum ConnectionError {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 

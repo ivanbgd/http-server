@@ -2,4 +2,16 @@
 //!
 //! Constants used throughout the application
 
+/// Local host IPv4 address and port
 pub const LOCAL_SOCKET_ADDR_STR: &str = "127.0.0.1:4221";
+
+/// Length of buffer for handling connections, 1 kB
+pub const BUFFER_LEN: usize = 1 << 10;
+
+pub const GET_ROOT_URI: &[u8] = b"GET / HTTP/1.1\r\n";
+
+pub const STATUS_200_OK: &str = "HTTP/1.1 200 OK";
+pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 NOT FOUND";
+
+pub const HELLO_HTML: &str = "templates/hello.html";
+pub const NOT_FOUND_404_HTML: &str = "templates/404.html";

@@ -41,11 +41,13 @@ Note: This section is for stages 2 and beyond.
 
 - If you would like to enable the added logging functionality, first set the `RUST_LOG` environment variable.
     - `export RUST_LOG=[trace | debug | info | warn]`
-- On macOS, run `./your_server.sh` in one terminal session, and `nc -vz 127.0.0.1 4221` in another.
-- In Windows Powershell, run `./your_server.sh` in one terminal session,
-  and `Test-NetConnection 127.0.0.1 -port 4221` in another.
-- We could also use `curl -v http://localhost:4221`.
+- Run `./your_server.sh` in one terminal session, and `curl -v http://localhost:4221` in another.
 
 # Notes
 
 - This challenge uses HTTP/1.1.
+
+# Improvements & Additions Over the Requirements
+
+- Logging
+- Rendering of web pages

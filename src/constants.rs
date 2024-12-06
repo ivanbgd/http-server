@@ -12,6 +12,11 @@ pub const GET_ROOT_URI: &[u8] = b"GET / HTTP/1.1\r\n";
 pub const GET_ECHO_URI: &[u8] = b"GET /echo/";
 pub const GET_USER_AGENT_URI: &[u8] = b"GET /user-agent";
 pub const GET_FILES_URI: &[u8] = b"GET /files/";
+pub const POST_FILES_URI: &[u8] = b"POST /files/";
+
+pub const HTTP_SUFFIX: &str = " HTTP/1.1";
 
 pub const STATUS_200_OK: &str = "HTTP/1.1 200 OK";
+pub const STATUS_201_CREATED: &str = "HTTP/1.1 201 Created";
 pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 Not Found";
+pub const STATUS_500_INTERNAL_SERVER_ERROR: &str = "HTTP/1.1 500 Internal Server Error";

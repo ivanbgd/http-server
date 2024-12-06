@@ -14,6 +14,9 @@ pub enum ConnectionError {
     #[error("{0}")]
     ParseError(String),
 
+    #[error("error parsing line")]
+    LineParseError,
+
     #[error("{0}")]
     HttpParseError(#[from] httparse::Error),
 

@@ -47,3 +47,4 @@ Note: This section is for stages 2 and beyond.
 # Notes
 
 - This challenge uses HTTP/1.1.
+- Supported compression encoding is `Content-Encoding: gzip`.

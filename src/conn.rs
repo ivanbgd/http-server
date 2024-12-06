@@ -10,7 +10,7 @@ use crate::errors::ConnectionError;
 use crate::templates::{echo_html, hello_html, not_found_404_html};
 use anyhow::{Context, Result};
 use httparse;
-use httparse::{parse_headers, Status};
+use httparse::{parse_headers, Header, Status};
 use log::{trace, warn};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -76,39 +76,51 @@ fn get_root() -> Result<String> {
 /// - `Content-Length: <text_length>`
 /// - `text`
 fn get_echo(buf: &[u8]) -> Result<String> {
+    let (_body_start, headers, _rest) = parsed_headers(buf)?;
+    let mut compress = false;
+    let mut compress_header = String::new();
+    for header in headers {
+        if header.name.to_lowercase() == "Accept-Encoding".to_lowercase() {
+            let header_value = String::from_utf8_lossy(header.value);
+            if header_value == "gzip" {
+                compress = true;
+                compress_header.push_str("Content-Encoding: gzip\r\n");
+            }
+            break;
+        }
+    }
+
     let rest = buf
         .strip_prefix(GET_ECHO_URI)
         .ok_or(ConnectionError::ParseError("strip echo prefix".to_string()))?;
-    let line = rest.lines().next().unwrap()?;
+    let line = rest.lines().next().context("error parsing line")??;
     let echo = line
         .strip_suffix(HTTP_SUFFIX)
         .ok_or(ConnectionError::ParseError("strip echo suffix".to_string()))?;
-    let contents = echo_html(echo);
-    let length = contents.len();
+    let mut body = echo_html(echo);
+
+    if compress {
+        // TODO
+        body = "".to_string();
+    }
+    let length = body.len();
     let status_line = STATUS_200_OK;
     let header =
-        format!("{status_line}\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
-    let response = format!("{header}{contents}");
+        format!("{status_line}\r\n{compress_header}Content-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
+    let response = format!("{header}{body}");
     Ok(response)
 }
 
-/// `GET /echo/user-agent HTTP/1.1`
+/// `GET /user-agent HTTP/1.1`
 ///
 /// - `HTTP/1.1 200 OK`
 /// - `Content-Type: text/plain`
 /// - `Content-Length: <user-agent_length>`
 /// - `"User-Agent"'s value`
 fn get_user_agent(buf: &[u8]) -> Result<String> {
-    let line = buf.lines().next().unwrap()?;
-    trace!("{}", line);
-    let rest = &buf[line.len() + 2..];
-    trace!("{}", String::from_utf8_lossy(rest).replace("\r\n", " "));
-    let mut headers = [httparse::EMPTY_HEADER; 8];
-    while let Status::Partial = parse_headers(rest, &mut headers)? {}
-    let parsed = parse_headers(rest, &mut headers)?.unwrap();
-    trace!("Request body begins at byte index {:?}.", parsed.0);
-    let contents = parsed
-        .1
+    let (body_start, headers, _rest) = parsed_headers(buf)?;
+    trace!("Request body begins at byte index {:?}.", body_start);
+    let contents = headers
         .iter()
         .find(|&&h| h.name.to_lowercase() == "User-Agent".to_lowercase())
         .ok_or(ConnectionError::UserAgentMissing)?
@@ -159,15 +171,7 @@ async fn get_files(buf: &[u8], dir: &Path) -> Result<String> {
 /// - The filename equals the filename parameter in the endpoint.
 /// - The file contains the contents of the request body.
 async fn post_files(buf: &[u8], dir: &Path) -> Result<String, ConnectionError> {
-    let line = buf.lines().next().unwrap()?;
-    trace!("{}", line);
-    let rest = &buf[line.len() + 2..];
-    trace!("{}", String::from_utf8_lossy(rest).replace("\r\n", " "));
-    let mut headers = [httparse::EMPTY_HEADER; 8];
-    while let Status::Partial = parse_headers(rest, &mut headers)? {}
-    let parsed = parse_headers(rest, &mut headers)?.unwrap();
-
-    let headers = parsed.1;
+    let (body_start, headers, rest) = parsed_headers(buf)?;
     let mut content_type_found = false;
     let mut content_length: usize = 0;
     for header in headers {
@@ -195,7 +199,6 @@ async fn post_files(buf: &[u8], dir: &Path) -> Result<String, ConnectionError> {
         ));
     }
 
-    let body_start = parsed.0;
     trace!("Request body begins at byte index {:?}.", body_start);
     let contents = &rest[body_start..body_start + content_length];
     assert_eq!(content_length, contents.len());
@@ -236,7 +239,7 @@ fn get_file_path(buf: &[u8], dir: &Path) -> Result<PathBuf> {
         .ok_or(ConnectionError::ParseError(
             "strip files prefix".to_string(),
         ))?;
-    let line = rest.lines().next().unwrap()?;
+    let line = rest.lines().next().context("error parsing line")??;
     let file_name = line
         .strip_suffix(HTTP_SUFFIX)
         .ok_or(ConnectionError::ParseError(
@@ -253,7 +256,7 @@ fn post_file_path(buf: &[u8], dir: &Path) -> Result<PathBuf> {
         .ok_or(ConnectionError::ParseError(
             "strip files prefix".to_string(),
         ))?;
-    let line = rest.lines().next().unwrap()?;
+    let line = rest.lines().next().context("error parsing line")??;
     let file_name = line
         .strip_suffix(HTTP_SUFFIX)
         .ok_or(ConnectionError::ParseError(
@@ -261,4 +264,23 @@ fn post_file_path(buf: &[u8], dir: &Path) -> Result<PathBuf> {
         ))?;
     let file_path = dir.join(file_name);
     Ok(file_path)
+}
+
+/// Returns the body starting index, a list of parsed headers and a reference
+/// to the list of headers inside the request buffer, `buf`, hence, unparsed.
+fn parsed_headers(buf: &[u8]) -> Result<(usize, Vec<Header>, &[u8])> {
+    let line = buf
+        .lines()
+        .next()
+        .ok_or(ConnectionError::LineParseError)??;
+    trace!("{}", line);
+    let rest = &buf[line.len() + 2..];
+    trace!("{}", String::from_utf8_lossy(rest).replace("\r\n", " "));
+    let mut headers = [httparse::EMPTY_HEADER; 8];
+    while let Status::Partial = parse_headers(rest, &mut headers)? {}
+    let parsed = parse_headers(rest, &mut headers)?.unwrap();
+    let body_start = parsed.0;
+    let headers = parsed.1.to_owned();
+
+    Ok((body_start, headers, rest))
 }

@@ -10,6 +10,7 @@ pub const BUFFER_LEN: usize = 1 << 10;
 
 pub const GET_ROOT_URI: &[u8] = b"GET / HTTP/1.1\r\n";
 pub const GET_ECHO_URI: &[u8] = b"GET /echo/";
+pub const GET_USER_AGENT_URI: &[u8] = b"GET /user-agent";
 
 pub const STATUS_200_OK: &str = "HTTP/1.1 200 OK";
 pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 Not Found";

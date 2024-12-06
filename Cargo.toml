@@ -9,6 +9,7 @@ rust-version = "1.80"
 anyhow = "1.0.94"                                # error handling
 bytes = "1.9.0"                                  # helps manage buffers
 env_logger = "0.11.5"
+httparse = "1.9.5"
 log = "0.4.22"
 maud = "0.26.0"
 thiserror = "2.0.4"                             # error handling

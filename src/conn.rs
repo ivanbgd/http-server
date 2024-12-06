@@ -1,7 +1,9 @@
 //! Connection and request handlers
 
+use crate::cli::Args;
 use crate::constants::{
-    BUFFER_LEN, GET_ECHO_URI, GET_ROOT_URI, GET_USER_AGENT_URI, STATUS_200_OK, STATUS_404_NOT_FOUND,
+    BUFFER_LEN, GET_ECHO_URI, GET_FILES_URI, GET_ROOT_URI, GET_USER_AGENT_URI, STATUS_200_OK,
+    STATUS_404_NOT_FOUND,
 };
 use crate::errors::ConnectionError;
 use crate::templates::{echo_html, hello_html, not_found_404_html};
@@ -10,10 +12,15 @@ use httparse;
 use httparse::{parse_headers, Status};
 use log::{trace, warn};
 use std::io::BufRead;
+use std::path::Path;
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-pub async fn handle_connection(mut stream: TcpStream) -> Result<(), ConnectionError> {
+pub async fn handle_connection(
+    mut stream: TcpStream,
+    args: &Option<Args>,
+) -> Result<(), ConnectionError> {
     trace!("Start handling request from {}", stream.peer_addr()?);
 
     let mut buf = [0; BUFFER_LEN];
@@ -32,6 +39,8 @@ pub async fn handle_connection(mut stream: TcpStream) -> Result<(), ConnectionEr
         get_echo(&buf)?
     } else if buf.starts_with(GET_USER_AGENT_URI) {
         get_user_agent(&buf)?
+    } else if buf.starts_with(GET_FILES_URI) {
+        get_files(&buf, &args.as_ref().expect("Expected some args").dir).await?
     } else {
         get_not_found()?
     };
@@ -106,6 +115,42 @@ fn get_user_agent(buf: &[u8]) -> Result<String> {
     let status_line = STATUS_200_OK;
     let header =
         format!("{status_line}\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
+    let response = format!("{header}{contents}");
+    Ok(response)
+}
+
+/// `GET /files/{filename} HTTP/1.1`
+///
+/// - `HTTP/1.1 200 OK`
+/// - `Content-Type: application/octet-stream`
+/// - `Content-Length: <file_length>`
+/// - `<file_contents>`
+///
+/// `dir` specifies the directory where the files are stored, as an absolute path.
+async fn get_files(buf: &[u8], dir: &Path) -> Result<String> {
+    let rest = buf
+        .strip_prefix(GET_FILES_URI)
+        .ok_or(ConnectionError::ParseError(
+            "strip files prefix".to_string(),
+        ))?;
+    let line = rest.lines().next().unwrap()?;
+    let file_name = line
+        .strip_suffix(" HTTP/1.1")
+        .ok_or(ConnectionError::ParseError(
+            "strip files suffix".to_string(),
+        ))?;
+    let file_path = dir.join(file_name);
+
+    let mut status_line = STATUS_404_NOT_FOUND;
+    let mut contents = Vec::new();
+    if let Ok(mut file) = File::open(file_path).await {
+        status_line = STATUS_200_OK;
+        file.read_to_end(&mut contents).await?;
+    }
+    let contents = String::from_utf8_lossy(&contents);
+    let length = contents.len();
+    let header =
+        format!("{status_line}\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
     Ok(response)
 }

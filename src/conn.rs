@@ -2,8 +2,8 @@
 
 use crate::cli::Args;
 use crate::constants::{
-    BUFFER_LEN, GET_ECHO_URI, GET_FILES_URI, GET_ROOT_URI, GET_USER_AGENT_URI, HTTP_SUFFIX,
-    POST_FILES_URI, STATUS_200_OK, STATUS_201_CREATED, STATUS_404_NOT_FOUND,
+    BUFFER_LEN, COMPRESSION_SCHEME, GET_ECHO_URI, GET_FILES_URI, GET_ROOT_URI, GET_USER_AGENT_URI,
+    HTTP_SUFFIX, POST_FILES_URI, STATUS_200_OK, STATUS_201_CREATED, STATUS_404_NOT_FOUND,
     STATUS_500_INTERNAL_SERVER_ERROR,
 };
 use crate::errors::ConnectionError;
@@ -79,14 +79,17 @@ fn get_echo(buf: &[u8]) -> Result<String> {
     let (_body_start, headers, _rest) = parsed_headers(buf)?;
     let mut compress = false;
     let mut compress_header = String::new();
-    for header in headers {
+    'outer: for header in headers {
         if header.name.to_lowercase() == "Accept-Encoding".to_lowercase() {
             let header_value = String::from_utf8_lossy(header.value);
-            if header_value == "gzip" {
-                compress = true;
-                compress_header.push_str("Content-Encoding: gzip\r\n");
+            for scheme in header_value.split(", ") {
+                if scheme == COMPRESSION_SCHEME {
+                    compress = true;
+                    compress_header
+                        .push_str(&format!("Content-Encoding: {}\r\n", COMPRESSION_SCHEME));
+                    break 'outer;
+                }
             }
-            break;
         }
     }
 

@@ -20,3 +20,5 @@ pub const STATUS_200_OK: &str = "HTTP/1.1 200 OK";
 pub const STATUS_201_CREATED: &str = "HTTP/1.1 201 Created";
 pub const STATUS_404_NOT_FOUND: &str = "HTTP/1.1 404 Not Found";
 pub const STATUS_500_INTERNAL_SERVER_ERROR: &str = "HTTP/1.1 500 Internal Server Error";
+
+pub const COMPRESSION_SCHEME: &str = "gzip";

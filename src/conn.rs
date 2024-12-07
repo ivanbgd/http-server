@@ -9,6 +9,7 @@ use crate::constants::{
 use crate::errors::ConnectionError;
 use crate::templates::{echo_html, hello_html, not_found_404_html};
 use anyhow::{Context, Result};
+use async_compression::tokio::write::GzipEncoder;
 use httparse;
 use httparse::{parse_headers, Header, Status};
 use log::{trace, warn};
@@ -37,7 +38,7 @@ pub async fn handle_connection(
     let response = if buf.starts_with(GET_ROOT_URI) {
         get_root()?
     } else if buf.starts_with(GET_ECHO_URI) {
-        get_echo(&buf)?
+        get_echo(&buf).await?
     } else if buf.starts_with(GET_USER_AGENT_URI) {
         get_user_agent(&buf)?
     } else if buf.starts_with(GET_FILES_URI) {
@@ -48,7 +49,7 @@ pub async fn handle_connection(
         get_not_found()?
     };
 
-    stream.write_all(response.as_bytes()).await?;
+    stream.write_all(&response).await?;
     stream.flush().await?;
 
     trace!("Stop handling request from {}", stream.peer_addr()?);
@@ -59,14 +60,14 @@ pub async fn handle_connection(
 /// `GET / HTTP/1.1`
 ///
 /// - `HTTP/1.1 200 OK`
-fn get_root() -> Result<String> {
+fn get_root() -> Result<Vec<u8>> {
     let contents = hello_html();
     let length = contents.len();
     let status_line = STATUS_200_OK;
     let header =
         format!("{status_line}\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
-    Ok(response)
+    Ok(response.as_bytes().to_vec())
 }
 
 /// `GET /echo/{text} HTTP/1.1`
@@ -75,18 +76,19 @@ fn get_root() -> Result<String> {
 /// - `Content-Type: text/plain`
 /// - `Content-Length: <text_length>`
 /// - `text`
-fn get_echo(buf: &[u8]) -> Result<String> {
+async fn get_echo(buf: &[u8]) -> Result<Vec<u8>> {
     let (_body_start, headers, _rest) = parsed_headers(buf)?;
     let mut compress = false;
-    let mut compress_header = String::new();
+    let mut compressed_header = Vec::new();
     'outer: for header in headers {
         if header.name.to_lowercase() == "Accept-Encoding".to_lowercase() {
-            let header_value = String::from_utf8_lossy(header.value);
-            for scheme in header_value.split(", ") {
-                if scheme == COMPRESSION_SCHEME {
+            let header_value = header.value;
+            for scheme in header_value.split(|c| c == &b',') {
+                if scheme.trim_ascii() == COMPRESSION_SCHEME {
                     compress = true;
-                    compress_header
-                        .push_str(&format!("Content-Encoding: {}\r\n", COMPRESSION_SCHEME));
+                    compressed_header.extend_from_slice(b"Content-Encoding: ");
+                    compressed_header.extend_from_slice(COMPRESSION_SCHEME);
+                    compressed_header.extend_from_slice(b"\r\n");
                     break 'outer;
                 }
             }
@@ -100,18 +102,32 @@ fn get_echo(buf: &[u8]) -> Result<String> {
     let echo = line
         .strip_suffix(HTTP_SUFFIX)
         .ok_or(ConnectionError::ParseError("strip echo suffix".to_string()))?;
-    let mut body = echo_html(echo);
+    let text = echo_html(echo);
 
+    let mut body: Vec<u8> = Vec::new();
     if compress {
-        // TODO
-        body = "".to_string();
+        let mut compr = GzipEncoder::new(&mut body);
+        compr.write_all(text.as_ref()).await?;
+        compr.flush().await?;
+    } else {
+        body = text.into_bytes();
     }
+
     let length = body.len();
-    let status_line = STATUS_200_OK;
-    let header =
-        format!("{status_line}\r\n{compress_header}Content-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
-    let response = format!("{header}{body}");
-    Ok(response)
+    let length = format!("{}", length).into_bytes();
+
+    let mut resp_headers: Vec<u8> = Vec::new();
+    resp_headers.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
+    resp_headers.extend_from_slice(&compressed_header);
+    resp_headers.extend_from_slice(b"Content-Type: text/plain\r\n");
+    resp_headers.extend_from_slice(b"Content-Length: ");
+    resp_headers.extend_from_slice(&length);
+    resp_headers.extend_from_slice(b"\r\n\r\n");
+
+    let mut response: Vec<u8> = resp_headers;
+    response.extend_from_slice(&body);
+
+    Ok(response.to_vec())
 }
 
 /// `GET /user-agent HTTP/1.1`
@@ -120,7 +136,7 @@ fn get_echo(buf: &[u8]) -> Result<String> {
 /// - `Content-Type: text/plain`
 /// - `Content-Length: <user-agent_length>`
 /// - `"User-Agent"'s value`
-fn get_user_agent(buf: &[u8]) -> Result<String> {
+fn get_user_agent(buf: &[u8]) -> Result<Vec<u8>> {
     let (body_start, headers, _rest) = parsed_headers(buf)?;
     trace!("Request body begins at byte index {:?}.", body_start);
     let contents = headers
@@ -134,7 +150,7 @@ fn get_user_agent(buf: &[u8]) -> Result<String> {
     let header =
         format!("{status_line}\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
-    Ok(response)
+    Ok(response.as_bytes().to_vec())
 }
 
 /// `GET /files/{filename} HTTP/1.1`
@@ -145,7 +161,7 @@ fn get_user_agent(buf: &[u8]) -> Result<String> {
 /// - `<file_contents>`
 ///
 /// `dir` specifies the directory where the files are stored, as an absolute path.
-async fn get_files(buf: &[u8], dir: &Path) -> Result<String> {
+async fn get_files(buf: &[u8], dir: &Path) -> Result<Vec<u8>> {
     let file_path = get_file_path(buf, dir)?;
     let mut status_line = STATUS_404_NOT_FOUND;
     let mut contents = Vec::new();
@@ -158,7 +174,7 @@ async fn get_files(buf: &[u8], dir: &Path) -> Result<String> {
     let header =
         format!("{status_line}\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
-    Ok(response)
+    Ok(response.as_bytes().to_vec())
 }
 
 /// `POST /files/{filename} HTTP/1.1`
@@ -173,7 +189,7 @@ async fn get_files(buf: &[u8], dir: &Path) -> Result<String> {
 /// Creates a new file in the given directory with the following requirements:
 /// - The filename equals the filename parameter in the endpoint.
 /// - The file contains the contents of the request body.
-async fn post_files(buf: &[u8], dir: &Path) -> Result<String, ConnectionError> {
+async fn post_files(buf: &[u8], dir: &Path) -> Result<Vec<u8>, ConnectionError> {
     let (body_start, headers, rest) = parsed_headers(buf)?;
     let mut content_type_found = false;
     let mut content_length: usize = 0;
@@ -219,20 +235,20 @@ async fn post_files(buf: &[u8], dir: &Path) -> Result<String, ConnectionError> {
     let header =
         format!("{status_line}\r\nContent-Type: application/octet-stream\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
-    Ok(response)
+    Ok(response.as_bytes().to_vec())
 }
 
 /// `GET /{non-existent} HTTP/1.1`
 ///
 /// - `HTTP/1.1 404 Not Found`
-fn get_not_found() -> Result<String> {
+fn get_not_found() -> Result<Vec<u8>> {
     let contents = not_found_404_html();
     let length = contents.len();
     let status_line = STATUS_404_NOT_FOUND;
     let header =
         format!("{status_line}\r\nContent-Type: text/plain\r\nContent-Length: {length}\r\n\r\n");
     let response = format!("{header}{contents}");
-    Ok(response)
+    Ok(response.as_bytes().to_vec())
 }
 
 /// Extracts file path from an HTTP GET request and returns it

@@ -9,10 +9,12 @@ use crate::constants::{
 use crate::errors::ConnectionError;
 use crate::templates::{echo_html, hello_html, not_found_404_html};
 use anyhow::{Context, Result};
-use async_compression::tokio::write::GzipEncoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use httparse;
 use httparse::{parse_headers, Header, Status};
 use log::{trace, warn};
+use std::io::prelude::*;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
@@ -104,14 +106,13 @@ async fn get_echo(buf: &[u8]) -> Result<Vec<u8>> {
         .ok_or(ConnectionError::ParseError("strip echo suffix".to_string()))?;
     let text = echo_html(echo);
 
-    let mut body: Vec<u8> = Vec::new();
-    if compress {
-        let mut compr = GzipEncoder::new(&mut body);
-        compr.write_all(text.as_ref()).await?;
-        compr.flush().await?;
+    let body = if compress {
+        let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(text.as_ref())?;
+        enc.finish()?
     } else {
-        body = text.into_bytes();
-    }
+        text.into_bytes()
+    };
 
     let length = body.len();
     let length = format!("{}", length).into_bytes();

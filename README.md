@@ -41,7 +41,7 @@ Note: This section is for stages 2 and beyond.
 
 - If you would like to enable the added logging functionality, first set the `RUST_LOG` environment variable.
     - `export RUST_LOG=[trace | debug | info | warn]`
-- Run `./your_server.sh` in one terminal session, and `curl -v http://localhost:4221`
+- Run `./your_program.sh` in one terminal session, and `curl -v http://localhost:4221`
   or some other network tool in another.
 
 # Notes

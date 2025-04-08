@@ -1,17 +1,16 @@
 [package]
-name = "codecrafters-http-server"
+name = "http-server"
 version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
+authors = ["Ivan Lazarević"]
 edition = "2021"
 rust-version = "1.80"
 
 [dependencies]
-anyhow = "1.0.94"                                # error handling
-bytes = "1.9.0"                                  # helps manage buffers
+anyhow = "1.0.94"
 env_logger = "0.11.5"
 flate2 = "1.0.35"
 httparse = "1.9.5"
 log = "0.4.22"
 maud = "0.26.0"
-thiserror = "2.0.4"                             # error handling
+thiserror = "2.0.4"
 tokio = { version = "1", features = ["full"] }

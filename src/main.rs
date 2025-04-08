@@ -1,9 +1,9 @@
 //! # An HTTP Server
 
 use anyhow::Result;
-use codecrafters_http_server::cli::{cli_args, Args};
-use codecrafters_http_server::conn::handle_connection;
-use codecrafters_http_server::constants::LOCAL_SOCKET_ADDR_STR;
+use http_server::cli::{cli_args, Args};
+use http_server::conn::handle_connection;
+use http_server::constants::LOCAL_SOCKET_ADDR_STR;
 use log::{info, warn};
 use std::env;
 use std::process::exit;

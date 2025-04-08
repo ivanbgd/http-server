@@ -121,21 +121,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "codecrafters-http-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytes",
- "env_logger",
- "flate2",
- "httparse",
- "log",
- "maud",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -188,6 +173,20 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
+
+[[package]]
+name = "http-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "flate2",
+ "httparse",
+ "log",
+ "maud",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "httparse"
